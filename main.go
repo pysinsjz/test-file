@@ -352,7 +352,7 @@ func lockUser() {
 	// del ?
 
 	// 查找 csv 目录
-	csvDir := "csv"
+	csvDir := "lock-user-csv"
 	if _, err := os.Stat(csvDir); os.IsNotExist(err) {
 		log.Printf("csv 目录不存在，尝试创建...")
 		err = os.Mkdir(csvDir, 0755)
@@ -438,7 +438,7 @@ func generateSQL(userIds []string) string {
 	var sqlStatements []string
 
 	for _, userId := range userIds {
-		sql := fmt.Sprintf("UPDATE b_user SET `status` = -1,status_remark = '2025/Sep/9 Multiple Accounts Bonus Hunter, do not unlock unless approved by OPS team',updated_at = now() WHERE id = %s and `status` != -1;", userId)
+		sql := fmt.Sprintf("UPDATE b_user SET `status` = -1,status_remark = '2025/Sep/22 Multiple Accounts Bonus Hunter, KYC script application, do not unlock unless approved by OPS team',updated_at = now() WHERE id = %s and `status` != -1;", userId)
 		sqlStatements = append(sqlStatements, sql)
 	}
 
