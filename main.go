@@ -438,7 +438,7 @@ func generateSQL(userIds []string) string {
 	var sqlStatements []string
 
 	for _, userId := range userIds {
-		sql := fmt.Sprintf("UPDATE b_user SET `status` = -1,status_remark = '2025/Sep/22 Multiple Accounts Bonus Hunter, KYC script application, do not unlock unless approved by OPS team',updated_at = now() WHERE id = %s and `status` != -1;", userId)
+		sql := fmt.Sprintf("UPDATE b_user SET `status` = -1,status_remark = '2025/Sep/25 Multiple Accounts Bonus Hunter, KYC script application, do not unlock unless approved by OPS team',updated_at = now() WHERE id = %s and `status` != -1;", userId)
 		sqlStatements = append(sqlStatements, sql)
 	}
 
@@ -570,6 +570,13 @@ func LogTaceParser() {
 			user_idStart := strings.Index(logStr, `"user_id":`) + 9
 			if user_idStart > 8 {
 				user_id = logStr[user_idStart : user_idStart+9] // user_id固定长度为8
+			}
+			// 查找user_id的位置
+			user_idNumStart := strings.Index(logStr, `"userId":`) + 9
+
+			if user_idNumStart > 8 {
+				user_id = logStr[user_idNumStart : user_idNumStart+8] // user_id固定长度为8
+				fmt.Printf("user_idNumStart: %v, user_id: %s\n", user_idNumStart, user_id)
 			}
 			// \"lot_number\":\"3677c41d61854cbd8956598ee09ccedd\"
 			// 查找lot_number的位置
@@ -709,11 +716,13 @@ func splitMultiRedisFile() {
 
 		// 获取原文件名（不含路径）
 		baseFileName := filepath.Base(filePath)
+		// 获取原文件扩展名
+		fileExt := filepath.Ext(baseFileName)
 		// 去掉原文件扩展名
-		nameWithoutExt := strings.TrimSuffix(baseFileName, filepath.Ext(baseFileName))
+		nameWithoutExt := strings.TrimSuffix(baseFileName, fileExt)
 
 		// 创建第一个输出文件
-		outputFileName := fmt.Sprintf("%s/%s_part_%04d.txt", outputDir, nameWithoutExt, currentFileIndex)
+		outputFileName := fmt.Sprintf("%s/%s_part_%04d%s", outputDir, nameWithoutExt, currentFileIndex, fileExt)
 		currentOutputFile, err = os.Create(outputFileName)
 		if err != nil {
 			log.Printf("创建输出文件失败: %v", err)
@@ -746,7 +755,7 @@ func splitMultiRedisFile() {
 				currentLineCount = 0
 
 				// 创建新的输出文件
-				outputFileName = fmt.Sprintf("%s/%s_part_%04d.txt", outputDir, nameWithoutExt, currentFileIndex)
+				outputFileName = fmt.Sprintf("%s/%s_part_%04d%s", outputDir, nameWithoutExt, currentFileIndex, fileExt)
 				currentOutputFile, err = os.Create(outputFileName)
 				_, err = currentOutputFile.WriteString("\n")
 				if err != nil {
