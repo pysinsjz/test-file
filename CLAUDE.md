@@ -4,59 +4,91 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Go language log parsing tool with four main functions:
-1. Log trace parsing - extracts key information from TXT log files and saves to data.log
-2. User locking tool - reads user IDs from CSV files and generates SQL update statements and Redis delete commands
-3. SQL log parsing - extracts SQL statements from log files and performs intelligent deduplication
-4. KYC review processing - processes Excel/CSV files and generates SQL update statements for KYC records
+This is a Go-based data processing suite with multiple utilities for handling log files, user management, and Redis operations. The project consists of several standalone Go programs and shell scripts for processing various data formats and generating commands for database and Redis operations.
+
+**Main Applications:**
+1. **main.go** - Multi-function data processor with 5 different modes
+2. **generate_redis_commands.go** - Generates Redis delete commands from Excel/CSV files
+3. **dedup_unique_uids.go** - Deduplicates user IDs from CSV files
+4. **Shell scripts** - Automation pipelines for complex workflows
+
+## Common Commands
+
+### Build and Run Main Application
+```bash
+go run main.go [function_number]
+```
+
+### Function Parameters (main.go)
+- `go run main.go 1` - Parse log trace files in ./logs directory → data.csv
+- `go run main.go 2` - Lock users from CSV files in ./lock-user-csv directory → lockUser-db_user库.sql + lockUser-redis_db0.txt
+- `go run main.go 3` - Parse SQL logs in ./sql-log directory → sql.log (with intelligent deduplication)
+- `go run main.go 4` - Split large files in multi-redis directory into 10K line chunks → multi-redis-split/
+- `go run main.go 5` - Process KYC review files in kyc-review directory → kyc-YYYY-MM-DD.sql
+
+### Utility Programs
+```bash
+# Generate Redis delete commands from del-ratio directory
+go run generate_redis_commands.go
+
+# Deduplicate UIDs from rm-repeat-uid/uid.csv
+go run dedup_unique_uids.go
+
+# Run complete Redis command generation pipeline
+./run_del_ratio_pipeline.sh
+```
+
+### Dependencies
+```bash
+go mod tidy  # Install dependencies (primarily github.com/xuri/excelize/v2)
+```
 
 ## Directory Structure
 
 ```
 .
-├── main.go              # Main application with all functionality
-├── CLAUDE.md            # This file
-├── README.md            # Project documentation
-├── test_cleanup.sh      # Test script
-├── logs/                # Log files directory (function 1)
-├── csv/                 # CSV files directory (function 2)
-├── sql-log/             # SQL log files directory (function 3)
-├── kyc-review/          # KYC review files directory (function 4)
-├── data.log             # Function 1 output file
-├── lockUser.sql         # Function 2 SQL output file
-├── kyc-YYYY-MM-DD.sql   # Function 4 SQL output file (dated)
-└── sql.log              # Function 3 output file
+├── main.go                           # Multi-function data processor
+├── generate_redis_commands.go        # Redis command generator
+├── dedup_unique_uids.go              # UID deduplication utility
+├── go.mod                            # Go module file
+├── *.sh                             # Shell automation scripts
+├── logs/                            # Input: Log trace files
+├── lock-user-csv/                   # Input: User locking CSV files
+├── sql-log/                         # Input: SQL log files
+├── kyc-review/                      # Input: KYC Excel/CSV files
+├── del-ratio/                       # Input: Excel/CSV for Redis deletion
+├── multi-redis/                     # Input: Large files to split
+├── multi-redis-split/               # Output: Split Redis command files
+├── rm-repeat-uid/                   # Input/Output: UID deduplication
+├── data.csv                         # Output: Parsed log trace data
+├── lockUser-db_user库.sql           # Output: User locking SQL commands
+├── lockUser-redis_db0.txt           # Output: User Redis delete commands
+├── sql.log                          # Output: Deduplicated SQL statements
+├── kyc-YYYY-MM-DD.sql               # Output: KYC approval SQL commands
+└── redis_delete_commands.txt        # Output: Generated Redis commands
 ```
-
-## Common Commands
-
-### Build and Run
-```bash
-go run main.go [function_number]
-```
-
-### Run Tests
-```bash
-./test_cleanup.sh
-```
-
-### Function Parameters
-- `go run main.go 1` - Parse log files in ./logs directory
-- `go run main.go 2` - Lock users from CSV files in ./csv directory
-- `go run main.go 3` - Parse SQL logs in ./sql-log directory
-- `go run main.go 4` - Split files in multi-redis directory into 10K line chunks
-- `go run main.go 5` - Process KYC review files in kyc-review directory
 
 ## Code Architecture
 
-The application is structured as a single main.go file with multiple functions:
+### Main Application (main.go)
+Single-file architecture with multiple processing modes:
 
-1. **Main Function** - Entry point that routes to different functionality based on command line arguments
-2. **LogTaceParser()** - Handles log trace parsing functionality (function 1)
-3. **lockUser()** - Handles user locking functionality (function 2)
-4. **sqlLogParser()** - Handles SQL log parsing functionality (function 3)
-5. **splitMultiRedisFile()** - Handles file splitting functionality (function 4)
-6. **kycReviewProcessor()** - Handles KYC review processing functionality (function 5)
-7. **Helper Functions** - Various utility functions for string parsing, SQL key generation, etc.
+- **Signal Handling** - Graceful shutdown with resource cleanup
+- **File Handle Management** - Automatic tracking and cleanup of open files
+- **Processing Functions:**
+  - `LogTaceParser()` - Extracts structured data from log files using fixed-position parsing
+  - `lockUser()` - Generates SQL and Redis commands for user account locking
+  - `sqlLogParser()` - Extracts and deduplicates SQL statements with intelligent key generation
+  - `splitMultiRedisFile()` - Splits large command files into manageable chunks
+  - `kycReviewProcessor()` - Processes KYC approval data from Excel/CSV files
 
-The code includes resource management features like automatic file handle tracking and signal handling for graceful shutdown.
+### Utility Programs
+- **generate_redis_commands.go** - Processes Excel/CSV files to generate Redis delete commands for turnover data
+- **dedup_unique_uids.go** - Simple deduplication utility for user ID lists
+
+### Key Features
+- **Large File Handling** - 1MB buffer sizes for processing large log files
+- **Format Support** - CSV and Excel (.xlsx) file processing
+- **Error Resilience** - Continues processing despite individual file errors
+- **Progress Reporting** - Detailed logging and progress indicators
+- **Resource Management** - Automatic cleanup of file handles and memory
