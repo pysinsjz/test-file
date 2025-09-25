@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +13,36 @@ import (
 
 // FileManager 文件管理器
 type FileManager struct {
-	tempDir string
+	tempDir   string
 	openFiles map[string]*os.File
+	logger    *Logger
 }
 
 // NewFileManager 创建文件管理器
 func NewFileManager(tempDir string) *FileManager {
 	fm := &FileManager{
-		tempDir: tempDir,
+		tempDir:   tempDir,
 		openFiles: make(map[string]*os.File),
+		logger:    GetLogger(), // 获取全局日志记录器
 	}
 
 	// 确保临时目录存在
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		log.Printf("创建临时目录失败: %v", err)
+		if fm.logger != nil {
+			fm.logger.Error("创建临时目录失败",
+				slog.String("temp_dir", tempDir),
+				slog.String("error", err.Error()),
+				slog.String("timestamp", time.Now().Format(time.RFC3339)),
+			)
+		}
+	} else {
+		if fm.logger != nil {
+			fm.logger.Info("临时目录创建成功",
+				slog.String("temp_dir", tempDir),
+				slog.String("timestamp", time.Now().Format(time.RFC3339)),
+			)
+		}
 	}
 
 	return fm
@@ -34,10 +51,25 @@ func NewFileManager(tempDir string) *FileManager {
 // CreateUserDir 为用户创建专属目录
 func (fm *FileManager) CreateUserDir(userID int64) string {
 	userDir := filepath.Join(fm.tempDir, fmt.Sprintf("user_%d_%d", userID, time.Now().Unix()))
+
 	if err := os.MkdirAll(userDir, 0755); err != nil {
 		log.Printf("创建用户目录失败: %v", err)
+		if fm.logger != nil {
+			fm.logger.LogError(userID, "create_user_dir", err, map[string]interface{}{
+				"user_dir": SanitizePath(userDir),
+			})
+		}
 		return fm.tempDir
 	}
+
+	if fm.logger != nil {
+		fm.logger.Info("用户目录创建成功",
+			slog.Int64("user_id", userID),
+			slog.String("user_dir", SanitizePath(userDir)),
+			slog.String("timestamp", time.Now().Format(time.RFC3339)),
+		)
+	}
+
 	return userDir
 }
 
@@ -45,6 +77,13 @@ func (fm *FileManager) CreateUserDir(userID int64) string {
 func (fm *FileManager) SaveUploadedFile(src io.Reader, destPath string) error {
 	destFile, err := os.Create(destPath)
 	if err != nil {
+		if fm.logger != nil {
+			fm.logger.Error("创建目标文件失败",
+				slog.String("dest_path", SanitizePath(destPath)),
+				slog.String("error", err.Error()),
+				slog.String("timestamp", time.Now().Format(time.RFC3339)),
+			)
+		}
 		return fmt.Errorf("创建目标文件失败: %v", err)
 	}
 	defer destFile.Close()
@@ -52,9 +91,24 @@ func (fm *FileManager) SaveUploadedFile(src io.Reader, destPath string) error {
 	// 注册文件句柄
 	fm.registerFile(destPath, destFile)
 
-	_, err = io.Copy(destFile, src)
+	bytesWritten, err := io.Copy(destFile, src)
 	if err != nil {
+		if fm.logger != nil {
+			fm.logger.Error("复制文件内容失败",
+				slog.String("dest_path", SanitizePath(destPath)),
+				slog.String("error", err.Error()),
+				slog.String("timestamp", time.Now().Format(time.RFC3339)),
+			)
+		}
 		return fmt.Errorf("复制文件内容失败: %v", err)
+	}
+
+	if fm.logger != nil {
+		fm.logger.Info("文件保存成功",
+			slog.String("dest_path", SanitizePath(destPath)),
+			slog.Int64("bytes_written", bytesWritten),
+			slog.String("timestamp", time.Now().Format(time.RFC3339)),
+		)
 	}
 
 	return nil
@@ -99,11 +153,20 @@ func (fm *FileManager) CloseFile(filePath string) {
 
 // CleanupFiles 清理所有打开的文件
 func (fm *FileManager) CleanupFiles() {
+	cleanupCount := 0
 	for path, file := range fm.openFiles {
 		if file != nil {
 			file.Close()
 		}
 		delete(fm.openFiles, path)
+		cleanupCount++
+	}
+
+	if fm.logger != nil {
+		fm.logger.Info("文件清理完成",
+			slog.Int("cleanup_count", cleanupCount),
+			slog.String("timestamp", time.Now().Format(time.RFC3339)),
+		)
 	}
 }
 

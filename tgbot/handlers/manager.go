@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"tgbot/config"
 	"tgbot/utils"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -15,6 +17,7 @@ type HandlerManager struct {
 	bot         *tgbotapi.BotAPI
 	config      *config.Config
 	fileManager *utils.FileManager
+	logger      *utils.Logger
 	userStates  sync.Map // 用户状态管理
 }
 
@@ -26,20 +29,54 @@ type UserState struct {
 }
 
 // NewHandlerManager 创建处理器管理器
-func NewHandlerManager(bot *tgbotapi.BotAPI, cfg *config.Config, fm *utils.FileManager) *HandlerManager {
+func NewHandlerManager(bot *tgbotapi.BotAPI, cfg *config.Config, fm *utils.FileManager, logger *utils.Logger) *HandlerManager {
 	return &HandlerManager{
 		bot:         bot,
 		config:      cfg,
 		fileManager: fm,
+		logger:      logger,
 	}
 }
 
 // HandleUpdate 处理更新
 func (hm *HandlerManager) HandleUpdate(update tgbotapi.Update) {
+	startTime := time.Now()
+
 	if update.Message != nil {
+		userID := update.Message.From.ID
+		chatID := update.Message.Chat.ID
+		username := update.Message.From.UserName
+
+		hm.logger.Info("收到消息",
+			slog.Int64("user_id", userID),
+			slog.Int64("chat_id", chatID),
+			slog.String("username", username),
+			slog.String("message_type", "message"),
+			slog.String("timestamp", startTime.Format(time.RFC3339)),
+		)
+
 		hm.handleMessage(update.Message)
+
+		hm.logger.LogResponse(userID, chatID, "message_processing", true,
+			time.Since(startTime), "消息处理完成")
+
 	} else if update.CallbackQuery != nil {
+		userID := update.CallbackQuery.From.ID
+		chatID := update.CallbackQuery.Message.Chat.ID
+		username := update.CallbackQuery.From.UserName
+
+		hm.logger.Info("收到回调查询",
+			slog.Int64("user_id", userID),
+			slog.Int64("chat_id", chatID),
+			slog.String("username", username),
+			slog.String("callback_data", update.CallbackQuery.Data),
+			slog.String("timestamp", startTime.Format(time.RFC3339)),
+		)
+
 		hm.handleCallbackQuery(update.CallbackQuery)
+
+		hm.logger.LogResponse(userID, chatID, "callback_processing", true,
+			time.Since(startTime), "回调查询处理完成")
 	}
 }
 
@@ -67,6 +104,10 @@ func (hm *HandlerManager) handleMessage(message *tgbotapi.Message) {
 
 // handleCommand 处理命令
 func (hm *HandlerManager) handleCommand(chatID, userID int64, command, args string) {
+	hm.logger.LogRequest(userID, chatID, command, fmt.Sprintf("命令参数: %s", args))
+
+	startTime := time.Now()
+
 	switch command {
 	case "start":
 		hm.sendStartMessage(chatID)
@@ -91,9 +132,18 @@ func (hm *HandlerManager) handleCommand(chatID, userID int64, command, args stri
 	case "status":
 		hm.sendStatusMessage(chatID, userID)
 	default:
+		hm.logger.Warn("未知命令",
+			slog.Int64("user_id", userID),
+			slog.Int64("chat_id", chatID),
+			slog.String("command", command),
+			slog.String("timestamp", time.Now().Format(time.RFC3339)),
+		)
 		msg := tgbotapi.NewMessage(chatID, "未知命令，请输入 /help 查看帮助")
 		hm.bot.Send(msg)
 	}
+
+	hm.logger.LogResponse(userID, chatID, command, true,
+		time.Since(startTime), fmt.Sprintf("命令 %s 处理完成", command))
 }
 
 // sendStartMessage 发送欢迎消息
@@ -108,7 +158,7 @@ func (hm *HandlerManager) sendStartMessage(chatID int64) {
 • /sqlparse - SQL日志解析
 • /filesplit - 文件分割
 • /kycreview - KYC审核处理
-• /redisdel - Redis删除命令生成
+• /redisdel - Redis流水清零命令生成
 • /redisadd - Redis流水增加命令生成
 • /uiddedup - UID去重处理
 

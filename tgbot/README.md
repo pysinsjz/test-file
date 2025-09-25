@@ -7,12 +7,12 @@
 ### 已实现的功能
 ✅ **日志解析** (`/logparse`) - 解析TXT日志文件，提取结构化数据到CSV
 ✅ **用户锁定** (`/lockuser`) - 从CSV文件生成用户锁定SQL和Redis命令
-🚧 **SQL解析** (`/sqlparse`) - 智能去重SQL日志解析 (开发中)
-🚧 **文件分割** (`/filesplit`) - 大文件分割为10K行小文件 (开发中)
-🚧 **KYC审核** (`/kycreview`) - KYC审核数据处理 (开发中)
-🚧 **Redis删除命令** (`/redisdel`) - 生成Redis删除命令 (开发中)
-🚧 **Redis流水命令** (`/redisadd`) - 生成Redis流水设置命令 (开发中)
-🚧 **UID去重** (`/uiddedup`) - 用户ID去重处理 (开发中)
+✅ **SQL解析** (`/sqlparse`) - 智能去重SQL日志解析
+✅ **文件分割** (`/filesplit`) - 大文件分割为10K行小文件，自动打包ZIP
+✅ **KYC审核** (`/kycreview`) - KYC审核数据处理
+✅ **Redis流水删除** (`/redisdel`) - 完整的Redis流水删除操作流程（生成命令→分割文件→创建执行脚本→ZIP打包）
+✅ **Redis流水命令** (`/redisadd`) - 生成Redis流水设置命令
+✅ **UID去重** (`/uiddedup`) - 用户ID去重处理
 
 ## 快速开始
 

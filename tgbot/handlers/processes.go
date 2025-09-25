@@ -308,30 +308,30 @@ func (hm *HandlerManager) processLockUser(chatID, userID int64, inputFile string
 
 // processSQLParse 处理SQL解析
 func (hm *HandlerManager) processSQLParse(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("SQL解析功能待实现")
+	return hm.processSQLLogParse(chatID, userID, inputFile, state)
 }
 
 // processFileSplit 处理文件分割
 func (hm *HandlerManager) processFileSplit(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("文件分割功能待实现")
+	return hm.processMultiFileSplit(chatID, userID, inputFile, state)
 }
 
 // processKYCReview 处理KYC审核
 func (hm *HandlerManager) processKYCReview(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("KYC审核功能待实现")
+	return hm.processKYCReviewHandler(chatID, userID, inputFile, state)
 }
 
 // processRedisDel 处理Redis删除命令生成
 func (hm *HandlerManager) processRedisDel(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("Redis删除命令生成功能待实现")
+	return hm.processRedisDeleteCmds(chatID, userID, inputFile, state)
 }
 
 // processRedisAdd 处理Redis增加命令生成
 func (hm *HandlerManager) processRedisAdd(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("Redis增加命令生成功能待实现")
+	return hm.processRedisAddCmds(chatID, userID, inputFile, state)
 }
 
 // processUIDDedup 处理UID去重
 func (hm *HandlerManager) processUIDDedup(chatID, userID int64, inputFile string, state *UserState) error {
-	return fmt.Errorf("UID去重功能待实现")
+	return hm.processUIDDeduplicate(chatID, userID, inputFile, state)
 }
