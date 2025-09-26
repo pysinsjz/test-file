@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.function.Name}} - 数据处理工具</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- 自定义CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-cogs me-2"></i>
+                数据处理工具
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-1"></i>
+                            首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/help">
+                            <i class="fas fa-question-circle me-1"></i>
+                            帮助
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container-fluid">
+        <div class="container my-5">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <!-- 功能信息头部 -->
+                    <div class="function-header text-center mb-5">
+                        <span class="display-1 mb-3 d-block">{{.function.Icon}}</span>
+                        <h2 class="mb-3">{{.function.Name}}</h2>
+                        <p class="lead text-muted">{{.function.Description}}</p>
+                        <div class="format-badge">
+                            <span class="badge bg-primary fs-6">
+                                输入: {{.function.InputFormat}}
+                            </span>
+                            <i class="fas fa-arrow-right mx-2 text-muted"></i>
+                            <span class="badge bg-success fs-6">
+                                输出: {{.function.OutputFormat}}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 文件上传卡片 -->
+                    <div class="upload-card card shadow-lg border-0">
+                        <div class="card-body p-5">
+                            <form id="uploadForm" enctype="multipart/form-data">
+                                <input type="hidden" id="functionType" value="{{.function.ID}}">
+
+                                <!-- 拖拽上传区域 -->
+                                <div class="upload-area" id="uploadArea">
+                                    <div class="upload-content text-center">
+                                        <i class="fas fa-cloud-upload-alt display-1 text-primary mb-3"></i>
+                                        <h4 class="mb-3">拖拽文件到此处</h4>
+                                        <p class="text-muted mb-3">或者</p>
+                                        <button type="button" class="btn btn-primary btn-lg" id="selectFileBtn">
+                                            <i class="fas fa-file-plus me-2"></i>
+                                            选择文件
+                                        </button>
+                                        <input type="file" id="fileInput" name="file" style="display: none;" accept="{{if eq .function.InputFormat "TXT"}}.txt{{else if eq .function.InputFormat "CSV"}}.csv{{else if eq .function.InputFormat "Excel/CSV"}}.csv,.xlsx{{else}}*{{end}}">
+                                    </div>
+                                </div>
+
+                                <!-- 文件信息显示 -->
+                                <div id="fileInfo" class="file-info mt-4" style="display: none;">
+                                    <div class="alert alert-info">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-file me-2"></i>
+                                                <span id="fileName"></span>
+                                                <small class="text-muted ms-2">(<span id="fileSize"></span>)</small>
+                                            </div>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" id="removeFileBtn">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 处理按钮 -->
+                                <div class="text-center mt-4">
+                                    <button type="submit" id="processBtn" class="btn btn-success btn-lg" style="display: none;">
+                                        <i class="fas fa-cogs me-2"></i>
+                                        开始处理
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 使用说明 -->
+                    <div class="usage-info mt-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    使用说明
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-primary">文件要求：</h6>
+                                        <ul class="text-muted small">
+                                            <li>格式：{{.function.InputFormat}}</li>
+                                            <li>大小：最大 50MB</li>
+                                            <li>编码：UTF-8</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">示例：</h6>
+                                        <p class="text-muted small">{{.function.Example}}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 返回按钮 -->
+                    <div class="text-center mt-4">
+                        <a href="/" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            返回首页
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-light text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0 text-muted">
+                <i class="fas fa-copyright me-1"></i>
+                2025 数据处理工具 - 为团队效率而生
+            </p>
+        </div>
+    </footer>
+
+    <!-- 处理进度模态框 -->
+    <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title">
+                        <i class="fas fa-cogs me-2 text-primary"></i>
+                        正在处理文件
+                    </h5>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">处理中...</span>
+                        </div>
+                        <h6 id="progressMessage">准备处理...</h6>
+                    </div>
+                    <div class="progress mb-3">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">处理时间取决于文件大小，请耐心等待...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <!-- 自定义JS -->
+    <script src="/static/js/main.js"></script>
+
+    <script>
+    $(document).ready(function() {
+        let selectedFile = null;
+        let currentTaskId = null;
+
+        // 文件选择处理
+        $('#selectFileBtn').click(function() {
+            $('#fileInput').click();
+        });
+
+        $('#fileInput').change(function(e) {
+            handleFileSelect(e.target.files[0]);
+        });
+
+        // 拖拽上传处理
+        $('#uploadArea').on('dragover', function(e) {
+            e.preventDefault();
+            $(this).addClass('drag-over');
+        });
+
+        $('#uploadArea').on('dragleave', function(e) {
+            e.preventDefault();
+            $(this).removeClass('drag-over');
+        });
+
+        $('#uploadArea').on('drop', function(e) {
+            e.preventDefault();
+            $(this).removeClass('drag-over');
+
+            const files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        // 文件选择处理函数
+        function handleFileSelect(file) {
+            if (!file) return;
+
+            // 文件大小检查
+            if (file.size > 50 * 1024 * 1024) {
+                alert('文件过大！最大支持 50MB');
+                return;
+            }
+
+            selectedFile = file;
+
+            // 显示文件信息
+            $('#fileName').text(file.name);
+            $('#fileSize').text(formatFileSize(file.size));
+            $('#fileInfo').show();
+            $('#processBtn').show();
+
+            // 隐藏上传区域
+            $('.upload-area').addClass('file-selected');
+        }
+
+        // 移除文件
+        $('#removeFileBtn').click(function() {
+            selectedFile = null;
+            $('#fileInfo').hide();
+            $('#processBtn').hide();
+            $('.upload-area').removeClass('file-selected');
+            $('#fileInput').val('');
+        });
+
+        // 表单提交处理
+        $('#uploadForm').submit(function(e) {
+            e.preventDefault();
+
+            if (!selectedFile) {
+                alert('请选择文件');
+                return;
+            }
+
+            uploadAndProcess();
+        });
+
+        // 上传和处理文件
+        function uploadAndProcess() {
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('function', $('#functionType').val());
+
+            // 显示进度模态框
+            $('#progressModal').modal('show');
+            updateProgress(0, '上传文件中...');
+
+            // 上传文件
+            $.ajax({
+                url: '/api/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    currentTaskId = response.task_id;
+                    startProcessing();
+                },
+                error: function(xhr) {
+                    $('#progressModal').modal('hide');
+                    const error = xhr.responseJSON ? xhr.responseJSON.error : '上传失败';
+                    alert('错误: ' + error);
+                }
+            });
+        }
+
+        // 开始处理
+        function startProcessing() {
+            $.ajax({
+                url: '/process/' + $('#functionType').val(),
+                type: 'POST',
+                data: { task_id: currentTaskId },
+                success: function() {
+                    pollProgress();
+                },
+                error: function(xhr) {
+                    $('#progressModal').modal('hide');
+                    alert('开始处理失败');
+                }
+            });
+        }
+
+        // 轮询进度
+        function pollProgress() {
+            const interval = setInterval(function() {
+                $.ajax({
+                    url: '/api/progress/' + currentTaskId,
+                    type: 'GET',
+                    success: function(task) {
+                        updateProgress(task.progress, task.message);
+
+                        if (task.status === 'completed') {
+                            clearInterval(interval);
+                            $('#progressModal').modal('hide');
+                            window.location.href = '/result/' + currentTaskId;
+                        } else if (task.status === 'failed') {
+                            clearInterval(interval);
+                            $('#progressModal').modal('hide');
+                            alert('处理失败: ' + task.message);
+                        }
+                    },
+                    error: function() {
+                        clearInterval(interval);
+                        $('#progressModal').modal('hide');
+                        alert('获取进度失败');
+                    }
+                });
+            }, 1000);
+        }
+
+        // 更新进度
+        function updateProgress(progress, message) {
+            $('#progressBar').css('width', progress + '%');
+            $('#progressMessage').text(message);
+        }
+
+        // 文件大小格式化
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    });
+    </script>
+</body>
+</html>

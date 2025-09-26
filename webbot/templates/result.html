@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>处理结果 - 数据处理工具</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- 自定义CSS -->
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-cogs me-2"></i>
+                数据处理工具
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home me-1"></i>
+                            首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/help">
+                            <i class="fas fa-question-circle me-1"></i>
+                            帮助
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="container-fluid">
+        <div class="container my-5">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <!-- 处理结果头部 -->
+                    <div class="result-header text-center mb-5">
+                        {{if eq .task.Status "completed"}}
+                        <div class="result-icon text-success mb-3">
+                            <i class="fas fa-check-circle display-1"></i>
+                        </div>
+                        <h2 class="text-success">处理完成！</h2>
+                        {{else if eq .task.Status "failed"}}
+                        <div class="result-icon text-danger mb-3">
+                            <i class="fas fa-exclamation-triangle display-1"></i>
+                        </div>
+                        <h2 class="text-danger">处理失败</h2>
+                        {{else}}
+                        <div class="result-icon text-warning mb-3">
+                            <i class="fas fa-hourglass-half display-1"></i>
+                        </div>
+                        <h2 class="text-warning">处理中...</h2>
+                        {{end}}
+
+                        <div class="function-info mt-3">
+                            <span class="badge bg-primary fs-6">
+                                {{.function.Icon}} {{.function.Name}}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 任务详情卡片 -->
+                    <div class="task-details card shadow-lg border-0 mb-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">
+                                <i class="fas fa-info-circle me-2"></i>
+                                任务详情
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>任务ID:</strong></td>
+                                            <td class="text-muted">{{.task.ID}}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>功能类型:</strong></td>
+                                            <td>{{.function.Name}}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>开始时间:</strong></td>
+                                            <td class="text-muted">{{.task.StartTime.Format "2006-01-02 15:04:05"}}</td>
+                                        </tr>
+                                        {{if .task.EndTime}}
+                                        <tr>
+                                            <td><strong>完成时间:</strong></td>
+                                            <td class="text-muted">{{.task.EndTime.Format "2006-01-02 15:04:05"}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </table>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="progress-info">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>处理进度</span>
+                                            <span>{{.task.Progress}}%</span>
+                                        </div>
+                                        <div class="progress mb-3">
+                                            <div class="progress-bar {{if eq .task.Status "completed"}}bg-success{{else if eq .task.Status "failed"}}bg-danger{{else}}bg-primary{{end}}"
+                                                 role="progressbar" style="width: {{.task.Progress}}%"></div>
+                                        </div>
+                                        <p class="text-muted small mb-0">
+                                            <i class="fas fa-info me-1"></i>
+                                            {{.task.Message}}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{if eq .task.Status "completed"}}
+                    <!-- 下载文件卡片 -->
+                    <div class="download-section card shadow-lg border-0 mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-download me-2"></i>
+                                下载结果文件
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {{if .task.OutputFiles}}
+                            <div class="row">
+                                {{range .task.OutputFiles}}
+                                <div class="col-md-6 mb-3">
+                                    <div class="download-item p-3 border rounded">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-file text-primary me-2"></i>
+                                                <span class="fw-bold">{{base .}}</span>
+                                            </div>
+                                            <a href="/api/download/{{.}}" class="btn btn-success btn-sm" download>
+                                                <i class="fas fa-download me-1"></i>
+                                                下载
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {{end}}
+                            </div>
+
+                            {{if gt (len .task.OutputFiles) 1}}
+                            <div class="text-center mt-3">
+                                <button class="btn btn-primary" id="downloadAllBtn">
+                                    <i class="fas fa-archive me-2"></i>
+                                    下载全部文件
+                                </button>
+                            </div>
+                            {{end}}
+                            {{else}}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-file-times display-4 mb-3"></i>
+                                <p>暂无可下载的文件</p>
+                            </div>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{else if eq .task.Status "failed"}}
+                    <!-- 错误信息卡片 -->
+                    <div class="error-section card shadow-lg border-danger mb-4">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                错误信息
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-danger">
+                                <p class="mb-0">{{.task.Message}}</p>
+                            </div>
+                            <div class="troubleshooting">
+                                <h6 class="text-danger">常见解决方案：</h6>
+                                <ul class="text-muted">
+                                    <li>检查文件格式是否正确（要求：{{.function.InputFormat}}）</li>
+                                    <li>确保文件编码为 UTF-8</li>
+                                    <li>验证文件内容格式是否符合要求</li>
+                                    <li>文件大小不要超过 50MB</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {{else}}
+                    <!-- 处理中状态 -->
+                    <div class="processing-section card shadow-lg border-warning mb-4">
+                        <div class="card-body text-center">
+                            <div class="spinner-border text-warning mb-3" role="status">
+                                <span class="visually-hidden">处理中...</span>
+                            </div>
+                            <p class="mb-0">文件正在处理中，页面会自动刷新...</p>
+                        </div>
+                    </div>
+                    {{end}}
+
+                    <!-- 操作按钮 -->
+                    <div class="actions text-center">
+                        <a href="/upload/{{.task.Function}}" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-redo me-1"></i>
+                            重新处理
+                        </a>
+                        <a href="/" class="btn btn-outline-secondary">
+                            <i class="fas fa-home me-1"></i>
+                            返回首页
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-light text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0 text-muted">
+                <i class="fas fa-copyright me-1"></i>
+                2025 数据处理工具 - 为团队效率而生
+            </p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <!-- 自定义JS -->
+    <script src="/static/js/main.js"></script>
+
+    <script>
+    $(document).ready(function() {
+        const taskStatus = '{{.task.Status}}';
+
+        // 如果任务还在处理中，定期刷新页面
+        if (taskStatus === 'processing' || taskStatus === 'pending') {
+            setTimeout(function() {
+                location.reload();
+            }, 3000);
+        }
+
+        // 批量下载功能
+        $('#downloadAllBtn').click(function() {
+            const downloadLinks = $('.download-item a[download]');
+
+            downloadLinks.each(function(index) {
+                const $this = $(this);
+                setTimeout(function() {
+                    window.open($this.attr('href'), '_blank');
+                }, index * 500); // 每500ms下载一个文件
+            });
+        });
+
+        // 下载进度提示
+        $('.download-item a[download]').click(function() {
+            const $btn = $(this);
+            const originalText = $btn.html();
+
+            $btn.html('<i class="fas fa-spinner fa-spin me-1"></i>下载中...')
+                .addClass('disabled');
+
+            setTimeout(function() {
+                $btn.html(originalText).removeClass('disabled');
+            }, 2000);
+        });
+    });
+    </script>
+</body>
+</html>
