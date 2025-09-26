@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"tgbot/utils"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -52,7 +52,7 @@ func (hm *HandlerManager) processRedisDeleteCmds(chatID, userID int64, inputFile
 	totalCount, err := hm.generateRedisDeleteCommands(inputFile, redisCommandsFile)
 	if err != nil {
 		hm.logger.LogError(userID, "generate_redis_commands", err, map[string]interface{}{
-			"input_file": utils.SanitizePath(inputFile),
+			"input_file":  utils.SanitizePath(inputFile),
 			"output_file": utils.SanitizePath(redisCommandsFile),
 		})
 		return fmt.Errorf("生成Redis命令失败: %v", err)
@@ -386,54 +386,93 @@ func (hm *HandlerManager) splitRedisCommandFile(inputFile, outputDir string) err
 func (hm *HandlerManager) createExecuteScript(scriptPath string) error {
 	script := `#!/bin/bash
 
-# Redis命令批量执行脚本
-# 自动生成时间: ` + time.Now().Format("2006-01-02 15:04:05") + `
+# Redis批量导入脚本
+# 使用方法: ./execute_redis_commands.sh <redis_host>
+# 例如: ./execute_redis_commands.sh 127.0.0.1
 
-echo "🚀 开始执行Redis删除命令..."
-echo "⏰ 开始时间: $(date)"
-
-# 统计文件数量
-file_count=$(ls redis_commands_part_*.txt 2>/dev/null | wc -l)
-echo "📁 找到 $file_count 个命令文件"
-
-if [ $file_count -eq 0 ]; then
-    echo "❌ 没有找到Redis命令文件"
+# 检查参数
+if [ $# -eq 0 ]; then
+    echo "错误: 请提供Redis主机地址"
+    echo "使用方法: $0 <redis_host>"
+    echo "例如: $0 127.0.0.1"
     exit 1
 fi
 
-# 确保Redis客户端可用
-if ! command -v redis-cli &> /dev/null; then
-    echo "❌ redis-cli 命令不可用，请确保Redis客户端已安装"
+REDIS_HOST=$1
+REDIS_PASSWORD=$2
+REDIS_PORT=6379
+CURRENT_DIR=$(cd "$(dirname "$0")" && pwd)
+
+echo "开始执行Redis命令导入..."
+echo "Redis主机: $REDIS_HOST"
+echo "Redis端口: $REDIS_PORT"
+echo "当前目录: $CURRENT_DIR"
+echo "================================"
+
+# 统计变量
+total_files=0
+success_files=0
+failed_files=0
+
+# 获取所有redis_commands_part_*.txt文件并按数字顺序排序
+files=$(ls -1 ${CURRENT_DIR}/redis_commands_part_*.txt 2>/dev/null | sort -V)
+
+if [ -z "$files" ]; then
+    echo "错误: 在当前目录中没有找到redis_commands_part_*.txt文件"
     exit 1
 fi
 
-# 执行每个命令文件
-counter=0
-total_commands=0
+# 计算总文件数
+total_files=$(echo "$files" | wc -l)
+echo "找到 $total_files 个文件需要处理"
+echo "================================"
 
-for file in redis_commands_part_*.txt; do
-    if [ -f "$file" ]; then
-        counter=$((counter + 1))
-        commands_in_file=$(wc -l < "$file")
-        total_commands=$((total_commands + commands_in_file))
-
-        echo "📝 正在执行第 $counter 个文件: $file (包含 $commands_in_file 条命令)"
-
-        # 执行Redis命令文件
-        redis-cli < "$file"
-
-        if [ $? -eq 0 ]; then
-            echo "✅ $file 执行成功"
-        else
-            echo "❌ $file 执行失败"
+# 逐个处理文件
+for file in $files; do
+    filename=$(basename "$file")
+    echo "正在处理: $filename"
+    
+    # 检查文件是否存在且不为空
+    if [ ! -f "$file" ] || [ ! -s "$file" ]; then
+        echo "  ⚠️  文件不存在或为空，跳过"
+        ((failed_files++))
+        continue
+    fi
+    
+    # 执行redis命令
+    if cat "$file" | redis-cli  -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n 2; then
+        echo "  ✅ 成功导入: $filename"
+        ((success_files++))
+    else
+        echo "  ❌ 导入失败: $filename"
+        ((failed_files++))
+        
+        # 询问是否继续
+        echo "是否继续执行剩余文件? (y/n): "
+        read -r response
+        if [ "$response" != "y" ] && [ "$response" != "Y" ]; then
+            echo "用户选择停止执行"
+            break
         fi
     fi
+    
+    # 添加短暂延迟，避免对Redis造成过大压力
+    sleep 0.1
 done
 
-echo ""
-echo "🎉 批量执行完成！"
-echo "📊 总计执行了 $total_commands 条Redis命令"
-echo "⏰ 结束时间: $(date)"
+echo "================================"
+echo "执行完成!"
+echo "总文件数: $total_files"
+echo "成功导入: $success_files"
+echo "失败文件: $failed_files"
+
+if [ $failed_files -eq 0 ]; then
+    echo "🎉 所有文件都已成功导入Redis!"
+    exit 0
+else
+    echo "⚠️  有 $failed_files 个文件导入失败，请检查错误信息"
+    exit 1
+fi 
 `
 
 	file, err := hm.fileManager.CreateOutputFile(scriptPath)

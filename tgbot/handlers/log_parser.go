@@ -136,7 +136,7 @@ func (hm *HandlerManager) parseLogLine(logStr string) []string {
 
 	// 查找user_id的位置
 	user_idStart := strings.Index(logStr, `"user_id":`) + 9
-	if user_idStart > 8 && len(logStr) >= user_idStart+9 {
+	if user_idStart > 8 {
 		user_id = logStr[user_idStart : user_idStart+9]
 	}
 

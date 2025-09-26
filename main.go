@@ -571,13 +571,6 @@ func LogTaceParser() {
 			if user_idStart > 8 {
 				user_id = logStr[user_idStart : user_idStart+9] // user_id固定长度为8
 			}
-			// 查找user_id的位置
-			user_idNumStart := strings.Index(logStr, `"userId":`) + 9
-
-			if user_idNumStart > 8 {
-				user_id = logStr[user_idNumStart : user_idNumStart+8] // user_id固定长度为8
-				fmt.Printf("user_idNumStart: %v, user_id: %s\n", user_idNumStart, user_id)
-			}
 			// \"lot_number\":\"3677c41d61854cbd8956598ee09ccedd\"
 			// 查找lot_number的位置
 			lot_numberStart := strings.Index(logStr, `\"lot_number\":\"`) + 16

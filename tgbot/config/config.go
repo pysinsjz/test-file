@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,7 +26,7 @@ type LogConfig struct {
 func LoadConfig() *Config {
 	botToken := os.Getenv("BOT_TOKEN")
 	if botToken == "" {
-		log.Fatal("BOT_TOKEN 环境变量未设置")
+		botToken = "8485165772:AAH4XePh1c2vL8VwBh_oqhs0ywFY3-cToqE"
 	}
 
 	tempDir := os.Getenv("TEMP_DIR")
@@ -66,7 +65,7 @@ func LoadConfig() *Config {
 		BotToken:    botToken,
 		TempDir:     tempDir,
 		MaxFileSize: 50 * 1024 * 1024, // 50MB
-		AdminUsers:  []int64{}, // 可以通过环境变量扩展
+		AdminUsers:  []int64{},        // 可以通过环境变量扩展
 		Log: LogConfig{
 			Level:       strings.ToUpper(logLevel),
 			LogDir:      logDir,
