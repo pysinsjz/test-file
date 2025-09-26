@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"webbot/processor"
 
@@ -193,7 +194,17 @@ func processFileAsync(task *TaskInfo) {
 	task.Status = "completed"
 	task.Progress = 100
 	task.Message = "处理完成"
-	task.OutputFiles = outputFiles
+
+	// 清理输出文件路径，移除 uploads/ 前缀以适配下载URL
+	cleanedOutputFiles := make([]string, len(outputFiles))
+	for i, file := range outputFiles {
+		if strings.HasPrefix(file, "uploads/") {
+			cleanedOutputFiles[i] = file[8:] // 移除 "uploads/" (8个字符)
+		} else {
+			cleanedOutputFiles[i] = file
+		}
+	}
+	task.OutputFiles = cleanedOutputFiles
 
 	log.Printf("任务 %s 处理成功，输出 %d 个文件", task.ID, len(outputFiles))
 }
