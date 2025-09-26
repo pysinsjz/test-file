@@ -199,7 +199,7 @@ func (hm *HandlerManager) hasValidData(row []string) bool {
 	return false
 }
 
-// sendResultFile 发送结果文件
+// sendResultFile 发送结果文件并自动返回菜单
 func (hm *HandlerManager) sendResultFile(chatID int64, filePath, caption string) {
 	// 创建文档消息
 	doc := tgbotapi.NewDocument(chatID, tgbotapi.FilePath(filePath))
@@ -212,4 +212,7 @@ func (hm *HandlerManager) sendResultFile(chatID int64, filePath, caption string)
 		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("❌ 文件发送失败: %v\n\n%s", err, caption))
 		hm.bot.Send(msg)
 	}
+
+	// 自动显示菜单
+	hm.sendMenuMessage(chatID)
 }

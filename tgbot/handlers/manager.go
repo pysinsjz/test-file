@@ -113,6 +113,8 @@ func (hm *HandlerManager) handleCommand(chatID, userID int64, command, args stri
 		hm.sendStartMessage(chatID)
 	case "help":
 		hm.sendHelpMessage(chatID)
+	case "menu":
+		hm.sendMenuMessage(chatID)
 	case "logparse":
 		hm.startLogParseProcess(chatID, userID)
 	case "lockuser":
@@ -138,7 +140,7 @@ func (hm *HandlerManager) handleCommand(chatID, userID int64, command, args stri
 			slog.String("command", command),
 			slog.String("timestamp", time.Now().Format(time.RFC3339)),
 		)
-		msg := tgbotapi.NewMessage(chatID, "未知命令，请输入 /help 查看帮助")
+		msg := tgbotapi.NewMessage(chatID, "未知命令，请输入 /menu 查看功能菜单或 /help 查看帮助")
 		hm.bot.Send(msg)
 	}
 
@@ -184,7 +186,7 @@ func (hm *HandlerManager) sendStartMessage(chatID int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("📋 KYC审核", "cmd_kycreview"),
-			tgbotapi.NewInlineKeyboardButtonData("🗑️ Redis删除", "cmd_redisdel"),
+			tgbotapi.NewInlineKeyboardButtonData("🗑️ Redis流水清零命令", "cmd_redisdel"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("➕ Redis增加", "cmd_redisadd"),
@@ -231,7 +233,7 @@ func (hm *HandlerManager) sendHelpMessage(chatID int64) {
 • 输出：KYC审核通过的SQL更新语句
 • 功能：批量处理KYC审核结果
 
-*6. 🗑️ Redis删除 (/redisdel)*
+*6. 🗑️ Redis流水清零命令 (/redisdel)*
 • 输入：Excel或CSV格式的用户数据
 • 输出：Redis删除命令文件
 • 功能：生成流水删除命令
@@ -251,6 +253,10 @@ func (hm *HandlerManager) sendHelpMessage(chatID int64) {
 • 支持的格式：TXT, CSV, XLSX
 • 处理过程中请耐心等待
 • 大文件处理可能需要几分钟时间
+
+*🚀 快速访问：*
+• 输入 /menu 随时显示功能菜单
+• 处理完成后会自动返回菜单
 
 有问题请联系管理员。`
 
@@ -301,7 +307,15 @@ func (hm *HandlerManager) handleTextMessage(chatID, userID int64, text string) {
 	state := hm.getUserState(userID)
 
 	if state.CurrentCommand == "" {
-		msg := tgbotapi.NewMessage(chatID, "请选择一个功能开始使用，输入 /start 查看菜单")
+		// 创建带菜单按钮的消息
+		msg := tgbotapi.NewMessage(chatID, "请选择一个功能开始使用")
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📋 功能菜单", "cmd_menu"),
+				tgbotapi.NewInlineKeyboardButtonData("❓ 帮助", "cmd_help"),
+			),
+		)
+		msg.ReplyMarkup = keyboard
 		hm.bot.Send(msg)
 		return
 	}
@@ -316,13 +330,26 @@ func (hm *HandlerManager) handleDocument(chatID, userID int64, document *tgbotap
 
 	if state.CurrentCommand == "" {
 		msg := tgbotapi.NewMessage(chatID, "请先选择要使用的功能，然后再上传文件")
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📋 功能菜单", "cmd_menu"),
+				tgbotapi.NewInlineKeyboardButtonData("❓ 帮助", "cmd_help"),
+			),
+		)
+		msg.ReplyMarkup = keyboard
 		hm.bot.Send(msg)
 		return
 	}
 
 	// 检查文件大小
 	if int64(document.FileSize) > hm.config.MaxFileSize {
-		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("文件过大！最大支持 %s", utils.FormatFileSize(hm.config.MaxFileSize)))
+		msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("文件过大！最大支持 %s\n\n请重新选择功能或上传较小的文件：", utils.FormatFileSize(hm.config.MaxFileSize)))
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("📋 返回菜单", "cmd_menu"),
+			),
+		)
+		msg.ReplyMarkup = keyboard
 		hm.bot.Send(msg)
 		return
 	}
@@ -346,5 +373,45 @@ func (hm *HandlerManager) sendStatusMessage(chatID, userID int64) {
 
 	msg := tgbotapi.NewMessage(chatID, statusText)
 	msg.ParseMode = "Markdown"
+	hm.bot.Send(msg)
+}
+
+// sendMenuMessage 发送功能菜单
+func (hm *HandlerManager) sendMenuMessage(chatID int64) {
+	menuText := `📋 *功能菜单*
+
+请选择您需要的功能：
+
+💡 *快速访问：*
+随时输入 /menu 可重新显示此菜单`
+
+	msg := tgbotapi.NewMessage(chatID, menuText)
+	msg.ParseMode = "Markdown"
+
+	// 创建内联键盘，复用现有布局
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 日志解析", "cmd_logparse"),
+			tgbotapi.NewInlineKeyboardButtonData("🔒 用户锁定", "cmd_lockuser"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🗄️ SQL解析", "cmd_sqlparse"),
+			tgbotapi.NewInlineKeyboardButtonData("✂️ 文件分割", "cmd_filesplit"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📋 KYC审核", "cmd_kycreview"),
+			tgbotapi.NewInlineKeyboardButtonData("🗑️ Redis流水清零命令", "cmd_redisdel"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("➕ Redis增加", "cmd_redisadd"),
+			tgbotapi.NewInlineKeyboardButtonData("🔄 UID去重", "cmd_uiddedup"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❓ 帮助", "cmd_help"),
+			tgbotapi.NewInlineKeyboardButtonData("📈 状态", "cmd_status"),
+		),
+	)
+	msg.ReplyMarkup = keyboard
+
 	hm.bot.Send(msg)
 }
