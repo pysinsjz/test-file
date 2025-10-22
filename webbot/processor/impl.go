@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -608,7 +609,7 @@ func processKYCCSVFile(inputFile string, outFile *os.File, currentTime string, s
 }
 
 func processRedisDelLogic(inputFile, outputDir string, callback ProgressCallback) ([]string, error) {
-	callback(20, "开始Redis删除命令生成...")
+	callback(10, "开始Redis删除命令生成流程...")
 
 	// 检查文件格式
 	ext := strings.ToLower(filepath.Ext(inputFile))
@@ -616,11 +617,12 @@ func processRedisDelLogic(inputFile, outputDir string, callback ProgressCallback
 		return nil, fmt.Errorf("只支持Excel (.xlsx) 或CSV格式的文件")
 	}
 
-	// 创建输出文件
-	outputFile := filepath.Join(outputDir, "redis_delete_commands.txt")
-	outFile, err := os.Create(outputFile)
+	// 步骤1：生成Redis删除命令
+	callback(20, "步骤1：生成Redis删除命令...")
+	redisCommandsFile := filepath.Join(outputDir, "redis_commands.txt")
+	outFile, err := os.Create(redisCommandsFile)
 	if err != nil {
-		return nil, fmt.Errorf("创建输出文件失败: %v", err)
+		return nil, fmt.Errorf("创建Redis命令文件失败: %v", err)
 	}
 	defer outFile.Close()
 
@@ -637,11 +639,67 @@ func processRedisDelLogic(inputFile, outputDir string, callback ProgressCallback
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("处理文件失败: %v", err)
+		return nil, fmt.Errorf("生成Redis命令失败: %v", err)
 	}
 
-	callback(95, fmt.Sprintf("Redis删除命令生成完成！共生成 %d 条命令，覆盖 %d 个用户", totalCount*2, totalCount))
-	return []string{outputFile}, nil
+	outFile.Close() // 确保文件关闭
+
+	callback(60, fmt.Sprintf("步骤1完成：成功生成 %d 条Redis命令", totalCount*2))
+
+	// 步骤2：分割Redis命令文件
+	callback(65, "步骤2：分割Redis命令文件（每10,000行一个文件）...")
+
+	// 创建分割目录
+	splitDir := filepath.Join(outputDir, "redis-split")
+	if err := os.MkdirAll(splitDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建分割目录失败: %v", err)
+	}
+
+	// 分割文件
+	splitFiles, err := splitRedisCommandFile(redisCommandsFile, splitDir, callback)
+	if err != nil {
+		return nil, fmt.Errorf("分割Redis命令文件失败: %v", err)
+	}
+
+	callback(80, fmt.Sprintf("步骤2完成：文件分割为 %d 个部分", len(splitFiles)))
+
+	// 步骤3：复制执行脚本
+	callback(85, "步骤3：复制execute_redis_commands.sh脚本...")
+
+	executeScript := "execute_redis_commands.sh"
+	scriptSrc := filepath.Join(".", executeScript)
+	scriptDst := filepath.Join(splitDir, executeScript)
+
+	err = copyFile(scriptSrc, scriptDst)
+	if err != nil {
+		return nil, fmt.Errorf("复制执行脚本失败: %v", err)
+	}
+
+	// 设置脚本执行权限
+	if err := os.Chmod(scriptDst, 0755); err != nil {
+		return nil, fmt.Errorf("设置脚本权限失败: %v", err)
+	}
+
+	callback(90, "步骤3完成：成功复制执行脚本")
+
+	// 步骤4：压缩分割目录
+	callback(92, "步骤4：压缩redis-split文件夹...")
+
+	zipFile := filepath.Join(outputDir, "redis-split.zip")
+	err = createZipFile(splitDir, zipFile, callback)
+	if err != nil {
+		return nil, fmt.Errorf("压缩文件夹失败: %v", err)
+	}
+
+	callback(95, "步骤4完成：成功压缩redis-split文件夹")
+
+	// 返回压缩文件路径 - 需要相对于uploads目录的路径
+	taskID := filepath.Base(filepath.Dir(outputDir))
+	relativeZipPath := filepath.Join(taskID, "output", "redis-split.zip")
+
+	callback(100, fmt.Sprintf("🎉 所有步骤执行完成！处理了 %d 个用户，生成了 %d 条Redis命令，分割为 %d 个文件", totalCount, totalCount*2, len(splitFiles)))
+
+	return []string{relativeZipPath}, nil
 }
 
 // processRedisDelExcelFile 处理Excel格式的Redis删除文件
@@ -652,11 +710,14 @@ func processRedisDelExcelFile(inputFile string, outFile *os.File, totalCount *in
 	}
 	defer f.Close()
 
-	// 获取第一个工作表的名称
-	sheetName := f.GetSheetName(0)
-	if sheetName == "" {
-		return fmt.Errorf("获取工作表失败")
+	// 获取所有工作表名称
+	sheetList := f.GetSheetList()
+	if len(sheetList) == 0 {
+		return fmt.Errorf("Excel文件中没有工作表")
 	}
+
+	// 使用第一个工作表
+	sheetName := sheetList[0]
 
 	// 获取所有行
 	rows, err := f.GetRows(sheetName)
@@ -666,23 +727,26 @@ func processRedisDelExcelFile(inputFile string, outFile *os.File, totalCount *in
 
 	callback(50, "正在生成Redis删除命令...")
 
-	// 跳过标题行，处理数据行
-	for i, row := range rows {
+	// 遍历所有行
+	for rowIndex, row := range rows {
+		// 跳过空行
 		if len(row) == 0 {
 			continue
 		}
 
+		// 获取第一列的值作为用户ID
 		var userID string
 		if len(row) > 0 {
 			userID = strings.TrimSpace(row[0])
 		}
 
+		// 跳过空的用户ID
 		if userID == "" {
 			continue
 		}
 
-		// 跳过表头 (如果第一行不是数字)
-		if i == 0 && !isNumeric(userID) {
+		// 跳过表头（如果第一行是表头）
+		if rowIndex == 0 && !isNumeric(userID) {
 			continue
 		}
 
@@ -703,12 +767,12 @@ func processRedisDelExcelFile(inputFile string, outFile *os.File, totalCount *in
 		*totalCount++
 
 		// 每处理1000行更新进度
-		if i%1000 == 0 && i > 0 {
-			progress := 50 + (i*40/len(rows))
+		if *totalCount%1000 == 0 {
+			progress := 50 + (*totalCount*40/len(rows))
 			if progress > 90 {
 				progress = 90
 			}
-			callback(progress, fmt.Sprintf("已处理 %d 行，生成 %d 条Redis命令...", i, *totalCount*2))
+			callback(progress, fmt.Sprintf("已处理 %d 个用户ID，生成 %d 条Redis命令...", *totalCount, *totalCount*2))
 		}
 	}
 
@@ -723,31 +787,35 @@ func processRedisDelCSVFile(inputFile string, outFile *os.File, totalCount *int,
 	}
 	defer csvFile.Close()
 
-	reader := csv.NewReader(csvFile)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return fmt.Errorf("读取CSV数据失败: %v", err)
-	}
-
 	callback(50, "正在生成Redis删除命令...")
 
-	// 处理数据行
-	for i, record := range records {
-		if len(record) == 0 {
+	// 创建扫描器逐行读取
+	scanner := bufio.NewScanner(csvFile)
+	rowIndex := 0
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+
+		// 跳过空行
+		if line == "" {
 			continue
 		}
 
+		// 解析CSV行，只取第一列
+		fields := strings.Split(line, ",")
 		var userID string
-		if len(record) > 0 {
-			userID = strings.TrimSpace(record[0])
+		if len(fields) > 0 {
+			userID = strings.TrimSpace(fields[0])
 		}
 
+		// 跳过空的用户ID
 		if userID == "" {
 			continue
 		}
 
-		// 跳过表头 (如果第一行不是数字)
-		if i == 0 && !isNumeric(userID) {
+		// 跳过表头（如果第一行是表头）
+		if rowIndex == 0 && !isNumeric(userID) {
+			rowIndex++
 			continue
 		}
 
@@ -768,13 +836,20 @@ func processRedisDelCSVFile(inputFile string, outFile *os.File, totalCount *int,
 		*totalCount++
 
 		// 每处理1000行更新进度
-		if i%1000 == 0 && i > 0 {
-			progress := 50 + (i*40/len(records))
+		if *totalCount%1000 == 0 {
+			progress := 50 + (*totalCount*40/10000) // 假设10000行
 			if progress > 90 {
 				progress = 90
 			}
-			callback(progress, fmt.Sprintf("已处理 %d 行，生成 %d 条Redis命令...", i, *totalCount*2))
+			callback(progress, fmt.Sprintf("已处理 %d 个用户ID，生成 %d 条Redis命令...", *totalCount, *totalCount*2))
 		}
+
+		rowIndex++
+	}
+
+	// 检查扫描过程中是否有错误
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("读取文件时发生错误: %v", err)
 	}
 
 	return nil
@@ -782,12 +857,8 @@ func processRedisDelCSVFile(inputFile string, outFile *os.File, totalCount *int,
 
 // isNumeric 检查字符串是否为数字
 func isNumeric(s string) bool {
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return len(s) > 0
+	_, err := strconv.Atoi(s)
+	return err == nil
 }
 
 func processRedisAddLogic(inputFile, outputFile string, callback ProgressCallback) error {
@@ -1186,4 +1257,135 @@ func extractFieldName(condition string) string {
 	}
 
 	return ""
+}
+
+// splitRedisCommandFile 分割Redis命令文件为多个小文件
+func splitRedisCommandFile(inputFile, outputDir string, callback ProgressCallback) ([]string, error) {
+	// 打开输入文件
+	file, err := os.Open(inputFile)
+	if err != nil {
+		return nil, fmt.Errorf("打开输入文件失败: %v", err)
+	}
+	defer file.Close()
+
+	var outputFiles []string
+	scanner := bufio.NewScanner(file)
+
+	// 增加缓冲区大小以处理超长的行
+	buf := make([]byte, 0, 1024*1024) // 1MB 缓冲区
+	scanner.Buffer(buf, 1024*1024)    // 最大 1MB
+
+	var currentFileIndex int = 1
+	var currentLineCount int = 0
+	var currentOutputFile *os.File
+
+	totalLines := 0
+
+	// 创建第一个输出文件
+	outputFileName := filepath.Join(outputDir, fmt.Sprintf("redis_commands_part_%04d.txt", currentFileIndex))
+	currentOutputFile, err = os.Create(outputFileName)
+	if err != nil {
+		return nil, fmt.Errorf("创建输出文件失败: %v", err)
+	}
+	outputFiles = append(outputFiles, outputFileName)
+
+	// 逐行读取并写入
+	for scanner.Scan() {
+		line := scanner.Text()
+		totalLines++
+		currentLineCount++
+
+		// 写入当前输出文件
+		_, err := currentOutputFile.WriteString(line + "\n")
+		if err != nil {
+			currentOutputFile.Close()
+			return nil, fmt.Errorf("写入文件失败: %v", err)
+		}
+
+		// 如果当前文件已达到10000行，创建新文件
+		if currentLineCount >= 10000 {
+			currentOutputFile.Close()
+			currentFileIndex++
+			currentLineCount = 0
+
+			// 创建新的输出文件
+			outputFileName = filepath.Join(outputDir, fmt.Sprintf("redis_commands_part_%04d.txt", currentFileIndex))
+			currentOutputFile, err = os.Create(outputFileName)
+			if err != nil {
+				return nil, fmt.Errorf("创建输出文件失败: %v", err)
+			}
+			outputFiles = append(outputFiles, outputFileName)
+
+			// 更新进度 (65% -> 80% 之间)
+			progress := 65 + (currentFileIndex*15/100)
+			if progress > 80 {
+				progress = 80
+			}
+			callback(progress, fmt.Sprintf("正在创建第 %d 个分割文件，已处理 %d 行...", currentFileIndex, totalLines))
+		}
+	}
+
+	// 关闭最后一个输出文件
+	if currentOutputFile != nil {
+		currentOutputFile.Close()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("读取文件时发生错误: %v", err)
+	}
+
+	return outputFiles, nil
+}
+
+// copyFile 复制文件
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = sourceFile.WriteTo(destFile)
+	return err
+}
+
+// createZipFile 创建ZIP压缩文件
+func createZipFile(sourceDir, zipPath string, callback ProgressCallback) error {
+	// 使用绝对路径
+	absSourceDir, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return fmt.Errorf("获取源目录绝对路径失败: %v", err)
+	}
+
+	absZipPath, err := filepath.Abs(zipPath)
+	if err != nil {
+		return fmt.Errorf("获取压缩文件绝对路径失败: %v", err)
+	}
+
+	// 切换到源目录的父目录
+	parentDir := filepath.Dir(absSourceDir)
+	sourceDirName := filepath.Base(absSourceDir)
+
+	// 使用系统zip命令进行压缩
+	zipCmd := exec.Command("zip", "-r", absZipPath, sourceDirName)
+	zipCmd.Dir = parentDir
+
+	// 执行命令并获取详细错误信息
+	output, err := zipCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("压缩文件失败: %v, 输出: %s", err, string(output))
+	}
+
+	// 检查压缩文件是否创建成功
+	if _, err := os.Stat(absZipPath); os.IsNotExist(err) {
+		return fmt.Errorf("压缩文件创建失败，文件不存在: %s", absZipPath)
+	}
+
+	return nil
 }

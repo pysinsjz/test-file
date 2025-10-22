@@ -2,6 +2,7 @@ package processor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -30,6 +31,7 @@ func ProcessLogParse(inputFile, outputDir string, callback ProgressCallback) ([]
 func ProcessLockUser(inputFile, outputDir string, callback ProgressCallback) ([]string, error) {
 	callback(10, "开始用户锁定处理...")
 
+	// 生成输出文件
 	sqlFile := filepath.Join(outputDir, "lockUser-db_user库.sql")
 	redisFile := filepath.Join(outputDir, "lockUser-redis_db0.txt")
 
@@ -39,8 +41,41 @@ func ProcessLockUser(inputFile, outputDir string, callback ProgressCallback) ([]
 		return nil, err
 	}
 
-	callback(100, "用户锁定处理完成")
-	return []string{sqlFile, redisFile}, nil
+	callback(80, "正在创建压缩包...")
+
+	// 创建压缩包目录
+	lockUserDir := filepath.Join(outputDir, "lockuser-files")
+	if err := os.MkdirAll(lockUserDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建锁定文件目录失败: %v", err)
+	}
+
+	// 复制文件到压缩目录
+	sqlDst := filepath.Join(lockUserDir, "lockUser-db_user库.sql")
+	redisDst := filepath.Join(lockUserDir, "lockUser-redis_db0.txt")
+
+	if err := copyFile(sqlFile, sqlDst); err != nil {
+		return nil, fmt.Errorf("复制SQL文件失败: %v", err)
+	}
+
+	if err := copyFile(redisFile, redisDst); err != nil {
+		return nil, fmt.Errorf("复制Redis文件失败: %v", err)
+	}
+
+	callback(90, "正在压缩文件...")
+
+	// 压缩整个目录
+	zipFile := filepath.Join(outputDir, "lockuser-files.zip")
+	err = createZipFile(lockUserDir, zipFile, callback)
+	if err != nil {
+		return nil, fmt.Errorf("压缩文件失败: %v", err)
+	}
+
+	// 返回压缩文件的相对路径
+	taskID := filepath.Base(filepath.Dir(outputDir))
+	relativeZipPath := filepath.Join(taskID, "output", "lockuser-files.zip")
+
+	callback(100, "用户锁定处理完成，文件已打包压缩")
+	return []string{relativeZipPath}, nil
 }
 
 // ProcessSQLParse 处理SQL解析
@@ -127,6 +162,39 @@ func ProcessUIDDedup(inputFile, outputDir string, callback ProgressCallback) ([]
 		return nil, err
 	}
 
-	callback(100, "UID去重处理完成")
-	return []string{outputFile, reportFile}, nil
+	callback(80, "正在创建压缩包...")
+
+	// 创建压缩包目录
+	dedupDir := filepath.Join(outputDir, "dedup-files")
+	if err := os.MkdirAll(dedupDir, 0755); err != nil {
+		return nil, fmt.Errorf("创建去重文件目录失败: %v", err)
+	}
+
+	// 复制文件到压缩目录
+	uidDst := filepath.Join(dedupDir, "dedup_uids.csv")
+	reportDst := filepath.Join(dedupDir, "dedup_report.txt")
+
+	if err := copyFile(outputFile, uidDst); err != nil {
+		return nil, fmt.Errorf("复制去重文件失败: %v", err)
+	}
+
+	if err := copyFile(reportFile, reportDst); err != nil {
+		return nil, fmt.Errorf("复制报告文件失败: %v", err)
+	}
+
+	callback(90, "正在压缩文件...")
+
+	// 压缩整个目录
+	zipFile := filepath.Join(outputDir, "dedup-files.zip")
+	err = createZipFile(dedupDir, zipFile, callback)
+	if err != nil {
+		return nil, fmt.Errorf("压缩文件失败: %v", err)
+	}
+
+	// 返回压缩文件的相对路径
+	taskID := filepath.Base(filepath.Dir(outputDir))
+	relativeZipPath := filepath.Join(taskID, "output", "dedup-files.zip")
+
+	callback(100, "UID去重处理完成，文件已打包压缩")
+	return []string{relativeZipPath}, nil
 }
