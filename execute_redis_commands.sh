@@ -14,7 +14,7 @@ fi
 
 REDIS_HOST=$1
 REDIS_PASSWORD=$2
-REDIS_PORT=6379
+REDIS_PORT=$3
 CURRENT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 echo "开始执行Redis命令导入..."
@@ -28,8 +28,8 @@ total_files=0
 success_files=0
 failed_files=0
 
-# 获取所有redis_commands_part_*.txt文件并按数字顺序排序
-files=$(ls -1 ${CURRENT_DIR}/redis_commands_part_*.txt 2>/dev/null | sort -V)
+# 获取所有redis_commands_part_*.txt文件并按数字顺序排序（排除已完成的文件）
+files=$(ls -1 ${CURRENT_DIR}/redis_commands_part_*.txt 2>/dev/null | grep -v "_done\.txt$" | sort -V)
 
 if [ -z "$files" ]; then
     echo "错误: 在当前目录中没有找到redis_commands_part_*.txt文件"
@@ -54,8 +54,17 @@ for file in $files; do
     fi
     
     # 执行redis命令
-    if cat "$file" | redis-cli  -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n 2; then
+    if cat "$file" | redis-cli  -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" -n 0; then
         echo "  ✅ 成功导入: $filename"
+        # 重命名文件为 {filename}_done
+        file_dir=$(dirname "$file")
+        new_filename="${filename}_done"
+        new_filepath="${file_dir}/${new_filename}"
+        if mv "$file" "$new_filepath"; then
+            echo "  📝 文件已重命名为: $new_filename"
+        else
+            echo "  ⚠️  文件重命名失败: $filename"
+        fi
         ((success_files++))
     else
         echo "  ❌ 导入失败: $filename"
@@ -71,7 +80,7 @@ for file in $files; do
     fi
     
     # 添加短暂延迟，避免对Redis造成过大压力
-    sleep 0.1
+    sleep 1
 done
 
 echo "================================"
